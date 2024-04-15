@@ -1,0 +1,328 @@
+---
+title: "L1morphPELIC"
+author: "Daniel Crawford"
+date: "04/02/2024"
+output: 
+  github_document: 
+    toc: TRUE
+---
+EXISTING
+
+# Correlation of Future Tense Construction Preference with Proficiency Scores for English L2 Learners
+
+```{r}
+#Import Packages
+library(tidyverse)
+```
+
+
+
+
+
+### Load Data
+Raw data can be found [here](https://github.com/ELI-Data-Mining-Group/PELIC-dataset/raw/master/PELIC_compiled.csv).
+
+```{r}
+#Read in Data from PELIC: 
+#PELIC_compiled = as_tibble(read.csv(url("https://github.com/ELI-Data-Mining-Group/PELIC-dataset/raw/master/PELIC_compiled.csv"), fileEncoding = "ISO-8859-1"))
+PELIC_compiled = as_tibble(read.csv('PELIC_compiled.csv'))
+
+nrow(PELIC_compiled)
+ncol(PELIC_compiled)
+head(PELIC_compiled)
+
+PELIC_compiled %>% slice(1:50)
+```
+
+
+
+
+```{r}
+#Need to get demographic and proficiency scores for each student
+
+student_info = as_tibble(read.csv(url("https://github.com/ELI-Data-Mining-Group/PELIC-dataset/raw/master/corpus_files/student_information.csv")))
+nrow(student_info)
+ncol(student_info)
+head(student_info)
+  
+```
+```{r}
+#A function to create a tokenized df with columns: token | lemma | POS
+#Input is a string
+tlp_text_to_df = function(x){
+  text_df = x %>% 
+    #Remove "[" character (at beginning of string)
+    str_remove("^\\[\\(") %>% 
+    #Remove "]" character (at end of string)
+    str_remove("\\)\\]$") %>% 
+    #split tuples
+    str_split_1("\\), \\(") %>% 
+    #remove 's
+    str_remove_all("'") %>% 
+    #convert to tibble
+    as.tibble() %>% 
+    #remove rows of commas - these are not relevant or impactful on analysis
+    filter(!startsWith(value, ",,")) %>% 
+    #separate into columns
+    separate(value, into = c('token','lemma','POS'), sep = ',')
+  
+  return(text_df)
+  
+}
+```
+
+
+
+
+```{r}
+#Set lemmas
+lemmas = c('walk','help','work')
+```
+
+
+#Distinguish between N and V
+
+
+
+### Ben's Demo Data
+Columns for 
+-   count of base forms of a word by student -> count_base_forms
+-   count of -s inflections, -ing, -ed -> ending with _
+-   count of total inflected words -> count_total_inflected_words
+-   number of different inflections (up to 4) -> count_number_differnt_inflections
+-   ratio of inflected to lemmas
+
+
+```{r}
+tokenized_df =  PELIC_compiled %>% 
+  
+  #Optional Slice, included for time
+  #slice(1:100) %>% 
+  
+  #create tokenized df from the tok_lem_POS string
+  mutate(tokenized_nested_df = map(tok_lem_POS, tlp_text_to_df))
+  
+  
+tokenized_df
+```
+
+```{r}
+tokenized_df %>% saveRDS('tokenized_df.rds')
+```
+
+
+
+```{r}
+
+#Create tokenized_df, each row is a token
+count_base_forms = tokenized_df %>% 
+  #keep the unique identifier of answer id
+  select(answer_id, tokenized_nested_df) %>% 
+  #make the df longer and unndest
+  unnest(tokenized_nested_df) %>% 
+  filter(trimws(lemma) %in% lemmas) %>% 
+  filter(trimws(token)==trimws(lemma)) %>% 
+  group_by(answer_id, lemma) %>% 
+  summarise(base_form_count = n()) %>% 
+  ungroup(answer_id, lemma) %>% 
+  pivot_wider(names_from = lemma, names_prefix = "base_form_count", values_from = base_form_count, values_fill = 0)
+  
+
+
+count_base_forms
+
+```
+
+
+```{r}
+count_ending_in = function(text_df, lemmas, str){
+  
+  text_df %>% 
+    select(answer_id, tokenized_nested_df) %>% 
+    unnest(tokenized_nested_df) %>% 
+    filter(trimws(lemma) %in% lemmas) %>% 
+    filter(endsWith(trimws(token), str)) %>% 
+    group_by(answer_id, lemma) %>% 
+    summarise(count_ending = n()) %>% 
+    ungroup(answer_id, lemma) %>% 
+    pivot_wider(names_from = lemma, names_prefix = paste0("endsWith_",str), values_from = count_ending, values_fill = 0)
+  
+}
+
+ending_with_s = count_ending_in(tokenized_df, lemmas, str = 's')
+ending_with_ing = count_ending_in(tokenized_df, lemmas, str = 'ing')
+ending_with_ed = count_ending_in(tokenized_df, lemmas, str = 'ed')
+
+ending_with_s
+```
+
+
+```{r}
+count_total_inflected_words = tokenized_df %>% 
+  #keep the unique identifier of answer id
+  select(answer_id, tokenized_nested_df) %>% 
+  #make the df longer and unndest
+  unnest(tokenized_nested_df) %>% 
+  filter(trimws(lemma) %in% lemmas) %>% 
+  group_by(answer_id, lemma) %>% 
+  summarise(total_inflected_words = n()) %>% 
+  ungroup(answer_id, lemma) %>% 
+  pivot_wider(names_from = lemma, names_prefix = "total_inflected_words", values_from = total_inflected_words, values_fill = 0)
+  
+
+
+count_total_inflected_words
+```
+
+
+```{r}
+count_number_differnt_inflections = tokenized_df %>% 
+  #keep the unique identifier of answer id
+  select(answer_id, tokenized_nested_df) %>% 
+  #make the df longer and unndest
+  unnest(tokenized_nested_df) %>% 
+  filter(trimws(lemma) %in% lemmas) %>% 
+  distinct() %>% 
+  group_by(answer_id, lemma) %>% 
+  summarise(count_num_diff_infl = n()) %>% 
+  ungroup(answer_id, lemma) %>% 
+  pivot_wider(names_from = lemma, names_prefix = "count_num_diff_infl", values_from = count_num_diff_infl, values_fill = 0)
+  
+
+
+count_number_differnt_inflections
+```
+
+
+```{r}
+inflection_rato = tokenized_df %>% 
+  #keep the unique identifier of answer id
+  select(answer_id, tokenized_nested_df) %>% 
+  #make the df longer and unndest
+  unnest(tokenized_nested_df) %>% 
+  filter(trimws(lemma) %in% lemmas) %>% 
+  mutate(is_inflected = as.logical(trimws(token) != trimws(lemma))) %>% 
+  group_by(answer_id, lemma) %>% 
+  summarise(infl_ratio = sum(is_inflected)/n()) %>% 
+  ungroup(answer_id, lemma) %>% 
+  pivot_wider(names_from = lemma, names_prefix = "inflection_ratio", values_from = infl_ratio, values_fill = 0)
+  
+
+
+inflection_rato
+```
+
+
+```{r}
+final_data = PELIC_compiled %>% 
+  select(answer_id, anon_id) %>% 
+  left_join(count_base_forms, by = 'answer_id') %>% 
+  left_join(ending_with_s, by = 'answer_id') %>% 
+  left_join(ending_with_ing, by = 'answer_id') %>% 
+  left_join(ending_with_ed, by = 'answer_id') %>% 
+  left_join(count_total_inflected_words, by = 'answer_id') %>% 
+  left_join(count_number_differnt_inflections, by = 'answer_id') %>% 
+  #left_join(inflection_rato, by = 'answer_id') %>% 
+  select(-answer_id) %>% 
+  arrange(anon_id) %>% 
+  group_by(anon_id) %>% 
+  summarise(across(everything(), ~sum(., na.rm = T))) %>% 
+  left_join(
+    PELIC_compiled %>% 
+      select(answer_id, anon_id) %>% 
+      left_join(inflection_rato, by = 'answer_id') %>% 
+      select(-answer_id) %>% 
+      arrange(anon_id) %>% 
+      group_by(anon_id) %>% 
+      summarise(across(everything(), ~mean(., na.rm = T))),
+    by = 'anon_id' 
+  )
+
+
+final_data
+```
+
+
+```{r}
+final_data %>% write.csv('final_data.csv')
+```
+
+
+
+
+
+
+
+
+
+left_join(count_base_forms, by = 'answer_id') %>% ### Format the Data 
+```{r}
+
+
+
+#Create tokenized_df, each row is a token
+lemma_counts = PELIC_compiled %>% 
+  
+  #Optional Slice, included for time
+  slice(1:1000) %>% 
+  
+  #create tokenized df from the tok_lem_POS string
+  mutate(tokenized_nested_df = map(tok_lem_POS, tlp_text_to_df)) %>% 
+  #keep the unique identifier of answer id
+  select(answer_id, tokenized_nested_df) %>% 
+  #make the df longer and unndest
+  unnest(tokenized_nested_df) %>% 
+  
+  
+  
+  filter(trimws(lemma) %in% lemmas) %>% 
+
+  
+  distinct() %>% 
+  
+  group_by(answer_id, lemma) %>% 
+  
+  summarise(different_tokens = n()) %>% 
+  
+  left_join(
+    PELIC_compiled %>% select(answer_id, anon_id)
+    ) %>% 
+  pivot_wider(names_from = lemma, names_prefix = "lemma_count", values_from = different_tokens, values_fill = 0) %>% 
+  
+  left_join(student_info, "anon_id")
+
+
+
+lemma_counts
+
+```
+
+
+
+# demo vis
+```{r}
+lemma_counts %>% 
+  ungroup() %>% 
+  select(starts_with('lemma_count'), native_language) %>% 
+  group_by(native_language) %>% 
+  summarise_all(.funs = mean) %>% 
+  pivot_longer(cols = starts_with('lemma_count')) %>% 
+  separate(name, c(NA, 'lemma'), sep = ' ') %>% 
+  
+  filter(native_language %in% c('Korean','Turkish','Chinese')) %>% 
+  
+
+  ggplot(aes(native_language, value, fill = lemma))+
+    geom_bar(stat = 'identity', position = 'dodge')+
+    facet_wrap(~lemma)+
+    ggtitle("Average Counts of Different Lemmas by L1") +
+    xlab('Native Language (L1)') + ylab('Average Nu,ber of Different Lemmas') +
+    theme_minimal()
+```
+
+
+
+# Session Info
+```{r}
+sessionInfo()
+```

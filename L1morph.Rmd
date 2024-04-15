@@ -1,0 +1,52 @@
+---
+title: "L1Morphology"
+date: "2024-02-18"
+---
+
+
+
+## L1 Morphology
+
+```{r}
+library(tidyverse)
+pelic = read.csv("C:/Users/dcraw/projects/ling_projects/L1morphPELIC/data/PELIC_compiled.csv")
+pelic
+```
+```{r}
+unique(pelic$L1)
+```
+
+
+
+```{r}
+looking_for = c('read')
+
+#Get count of "reading"
+pelic_filtered = pelic %>% 
+  #Only level 3
+  filter(level_id == "3") %>% 
+  #Kor, Jap, Chi, Turk, Ara
+  filter(L1 %in% c("Arabic","Korean","Chinese","Chinese","Japanese"))
+
+```
+
+
+```{r}
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+sessionInfo()
+```
+
