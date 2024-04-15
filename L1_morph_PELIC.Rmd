@@ -46,6 +46,9 @@ ncol(student_info)
 head(student_info)
   
 ```
+
+
+
 ```{r}
 #A function to create a tokenized df with columns: token | lemma | POS
 #Input is a string
@@ -236,7 +239,8 @@ final_data = PELIC_compiled %>%
       group_by(anon_id) %>% 
       summarise(across(everything(), ~mean(., na.rm = T))),
     by = 'anon_id' 
-  )
+  ) %>% 
+  left_join(student_info, by = 'anon_id')
 
 
 final_data
