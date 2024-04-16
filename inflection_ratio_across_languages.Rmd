@@ -1,0 +1,43 @@
+
+
+
+```{r}
+#Import Packages
+library(tidyverse)
+```
+
+```{r}
+corpus_data = read.csv('final_data.csv')
+corpus_data
+```
+
+```{r}
+table(corpus_data$native_language)
+```
+
+```{r}
+
+langs = c('Chinese', 'Korean', 'Arabic', 'Japanese','Thai','Turkish')
+
+corpus_data %>% 
+  select(anon_id, native_language, starts_with('inflection_ratio')) %>% 
+  filter(native_language %in% langs) %>% 
+  group_by(native_language) %>% 
+  summarise(across(where(is.numeric), ~ mean(.x, na.rm = TRUE))) %>% 
+  pivot_longer(starts_with('inflection')) %>% 
+  
+  
+  
+  ggplot(aes(native_language, value, fill = name))+
+    geom_bar(stat = 'identity', position = 'dodge')+
+    ggtitle("Average Inflection Ratio of Different Lemmas by L1") +
+    xlab('Native Language (L1)') + ylab('Average Inflection Ratio of Different Lemmas') +
+    theme_minimal()
+
+  
+  
+
+
+
+```
+
