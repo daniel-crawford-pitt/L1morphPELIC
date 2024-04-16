@@ -25,13 +25,17 @@ Raw data can be found [here](https://github.com/ELI-Data-Mining-Group/PELIC-data
 ```{r}
 #Read in Data from PELIC: 
 #PELIC_compiled = as_tibble(read.csv(url("https://github.com/ELI-Data-Mining-Group/PELIC-dataset/raw/master/PELIC_compiled.csv"), fileEncoding = "ISO-8859-1"))
-PELIC_compiled = as_tibble(read.csv('PELIC_compiled.csv'))
+PELIC_compiled = as_tibble(read.csv('data/pelic_compiled.csv'))
 
 nrow(PELIC_compiled)
 ncol(PELIC_compiled)
 head(PELIC_compiled)
 
 PELIC_compiled %>% slice(1:50)
+```
+
+```{r}
+PELIC_compiled %>% write.csv('PELIC_compiled.csv')
 ```
 
 
@@ -114,6 +118,11 @@ tokenized_df %>% saveRDS('tokenized_df.rds')
 ```
 
 
+```{r}
+tokenized_df = readRDS('data/tokenized_df.rds')
+```
+
+
 
 ```{r}
 
@@ -185,6 +194,9 @@ count_number_differnt_inflections = tokenized_df %>%
   #make the df longer and unndest
   unnest(tokenized_nested_df) %>% 
   filter(trimws(lemma) %in% lemmas) %>% 
+  
+  show
+  
   distinct() %>% 
   group_by(answer_id, lemma) %>% 
   summarise(count_num_diff_infl = n()) %>% 
@@ -224,7 +236,7 @@ final_data = PELIC_compiled %>%
   left_join(ending_with_ing, by = 'answer_id') %>% 
   left_join(ending_with_ed, by = 'answer_id') %>% 
   left_join(count_total_inflected_words, by = 'answer_id') %>% 
-  left_join(count_number_differnt_inflections, by = 'answer_id') %>% 
+  #left_join(count_number_differnt_inflections, by = 'answer_id') %>% 
   #left_join(inflection_rato, by = 'answer_id') %>% 
   select(-answer_id) %>% 
   arrange(anon_id) %>% 
