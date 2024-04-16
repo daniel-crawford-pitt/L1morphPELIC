@@ -27,33 +27,17 @@ Raw data can be found [here](https://github.com/ELI-Data-Mining-Group/PELIC-data
 #PELIC_compiled = as_tibble(read.csv(url("https://github.com/ELI-Data-Mining-Group/PELIC-dataset/raw/master/PELIC_compiled.csv"), fileEncoding = "ISO-8859-1"))
 PELIC_compiled = as_tibble(read.csv('data/pelic_compiled.csv'))
 
-nrow(PELIC_compiled)
-ncol(PELIC_compiled)
-head(PELIC_compiled)
-
-PELIC_compiled %>% slice(1:50)
-```
-
-```{r}
-PELIC_compiled %>% write.csv('PELIC_compiled.csv')
-```
-
-
-
-
-```{r}
 #Need to get demographic and proficiency scores for each student
 
 student_info = as_tibble(read.csv(url("https://github.com/ELI-Data-Mining-Group/PELIC-dataset/raw/master/corpus_files/student_information.csv")))
-nrow(student_info)
-ncol(student_info)
-head(student_info)
-  
-```
 
 
+#Read in tokenized df:
+tokenized_df = readRDS('data/tokenized_df.rds')
 
-```{r}
+
+#If you dont have the tokenized df, this will create it in about 10 minutes:
+
 #A function to create a tokenized df with columns: token | lemma | POS
 #Input is a string
 tlp_text_to_df = function(x){
@@ -76,18 +60,42 @@ tlp_text_to_df = function(x){
   return(text_df)
   
 }
+
+
+#tokenized_df =  PELIC_compiled %>% mutate(tokenized_nested_df = map(tok_lem_POS, tlp_text_to_df))
+  
+  
+tokenized_df
+
 ```
 
+
+# Set Lemmas
 
 
 
 ```{r}
-#Set lemmas
-lemmas = c('walk','help','work')
+#Set lemmas: {lemma}_{N/V}
+lemmas = c('walk_V','help_V','work_V')
+
+
+
+
 ```
 
+```{r}
 
-#Distinguish between N and V
+#Tokenized df with just lemmas matching
+tokenized_df_just_lemmas = tokenized_df %>%
+  select(answer_id, tokenized_nested_df) %>% 
+  unnest(tokenized_nested_df) %>% 
+  mutate(lemma_and_pos = paste(trimws(lemma), substr(trimws(POS),1,1), sep = '_')) %>% 
+  filter(lemma_and_pos %in% lemmas) %>% 
+  select(-lemma_and_pos)
+
+tokenized_df_just_lemmas
+```
+
 
 
 
@@ -100,39 +108,15 @@ Columns for
 -   ratio of inflected to lemmas
 
 
-```{r}
-tokenized_df =  PELIC_compiled %>% 
-  
-  #Optional Slice, included for time
-  #slice(1:100) %>% 
-  
-  #create tokenized df from the tok_lem_POS string
-  mutate(tokenized_nested_df = map(tok_lem_POS, tlp_text_to_df))
-  
-  
-tokenized_df
-```
-
-```{r}
-tokenized_df %>% saveRDS('tokenized_df.rds')
-```
 
 
-```{r}
-tokenized_df = readRDS('data/tokenized_df.rds')
-```
 
 
 
 ```{r}
 
 #Create tokenized_df, each row is a token
-count_base_forms = tokenized_df %>% 
-  #keep the unique identifier of answer id
-  select(answer_id, tokenized_nested_df) %>% 
-  #make the df longer and unndest
-  unnest(tokenized_nested_df) %>% 
-  filter(trimws(lemma) %in% lemmas) %>% 
+count_base_forms = tokenized_df_just_lemmas %>% 
   filter(trimws(token)==trimws(lemma)) %>% 
   group_by(answer_id, lemma) %>% 
   summarise(base_form_count = n()) %>% 
@@ -150,9 +134,6 @@ count_base_forms
 count_ending_in = function(text_df, lemmas, str){
   
   text_df %>% 
-    select(answer_id, tokenized_nested_df) %>% 
-    unnest(tokenized_nested_df) %>% 
-    filter(trimws(lemma) %in% lemmas) %>% 
     filter(endsWith(trimws(token), str)) %>% 
     group_by(answer_id, lemma) %>% 
     summarise(count_ending = n()) %>% 
@@ -161,21 +142,16 @@ count_ending_in = function(text_df, lemmas, str){
   
 }
 
-ending_with_s = count_ending_in(tokenized_df, lemmas, str = 's')
-ending_with_ing = count_ending_in(tokenized_df, lemmas, str = 'ing')
-ending_with_ed = count_ending_in(tokenized_df, lemmas, str = 'ed')
+ending_with_s = count_ending_in(tokenized_df_just_lemmas, lemmas, str = 's')
+ending_with_ing = count_ending_in(tokenized_df_just_lemmas, lemmas, str = 'ing')
+ending_with_ed = count_ending_in(tokenized_df_just_lemmas, lemmas, str = 'ed')
 
 ending_with_s
 ```
 
 
 ```{r}
-count_total_inflected_words = tokenized_df %>% 
-  #keep the unique identifier of answer id
-  select(answer_id, tokenized_nested_df) %>% 
-  #make the df longer and unndest
-  unnest(tokenized_nested_df) %>% 
-  filter(trimws(lemma) %in% lemmas) %>% 
+count_total_inflected_words = tokenized_df_just_lemmas %>% 
   group_by(answer_id, lemma) %>% 
   summarise(total_inflected_words = n()) %>% 
   ungroup(answer_id, lemma) %>% 
@@ -187,35 +163,10 @@ count_total_inflected_words
 ```
 
 
-```{r}
-count_number_differnt_inflections = tokenized_df %>% 
-  #keep the unique identifier of answer id
-  select(answer_id, tokenized_nested_df) %>% 
-  #make the df longer and unndest
-  unnest(tokenized_nested_df) %>% 
-  filter(trimws(lemma) %in% lemmas) %>% 
-  
-  show
-  
-  distinct() %>% 
-  group_by(answer_id, lemma) %>% 
-  summarise(count_num_diff_infl = n()) %>% 
-  ungroup(answer_id, lemma) %>% 
-  pivot_wider(names_from = lemma, names_prefix = "count_num_diff_infl", values_from = count_num_diff_infl, values_fill = 0)
-  
-
-
-count_number_differnt_inflections
-```
 
 
 ```{r}
-inflection_rato = tokenized_df %>% 
-  #keep the unique identifier of answer id
-  select(answer_id, tokenized_nested_df) %>% 
-  #make the df longer and unndest
-  unnest(tokenized_nested_df) %>% 
-  filter(trimws(lemma) %in% lemmas) %>% 
+inflection_rato = tokenized_df_just_lemmas %>% 
   mutate(is_inflected = as.logical(trimws(token) != trimws(lemma))) %>% 
   group_by(answer_id, lemma) %>% 
   summarise(infl_ratio = sum(is_inflected)/n()) %>% 
